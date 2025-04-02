@@ -1,0 +1,10 @@
+# 依赖目录
+node_modules/
+
+# Next.js 构建输出
+.next/
+out/          # 如果使用 `next export` 生成的静态站点
+
+# 系统文件
+.DS_Store
+.env*.local   # 本地环境变量（避免泄露敏感信息）
