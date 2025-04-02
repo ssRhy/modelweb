@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, TransformControls } from "@react-three/drei";
 import {
@@ -8,12 +8,24 @@ import {
   DirectionalLight,
   AmbientLight,
   PointLight,
+  Vector3,
+  Euler,
+  BufferGeometry,
+  Material,
 } from "three";
 import SceneHierarchy from "../components/SceneHierarchy";
 import PropertiesPanel from "../components/PropertiesPanel";
 import Toolbar from "../components/Toolbar";
-import { useThree } from "@react-three/fiber";
 import SceneContent from "../components/SceneContent";
+import AdvancedTools from "../components/AdvancedTools";
+import {
+  CommandHistory,
+  MoveCommand,
+  RotateCommand,
+  ScaleCommand,
+  AddObjectCommand,
+  RemoveObjectCommand,
+} from "../lib/CommandHistory";
 
 const Home: React.FC = () => {
   const [selectedObject, setSelectedObject] = useState<Object3D | null>(null);
@@ -21,18 +33,66 @@ const Home: React.FC = () => {
   const [transformMode, setTransformMode] = useState<
     "translate" | "rotate" | "scale"
   >("translate");
+  const commandHistoryRef = useRef<CommandHistory>(new CommandHistory(50)); // 保存最多50条历史记录
+  const [, forceUpdate] = useState<{}>({});
+
+  // 当操作历史变化时强制更新界面
+  useEffect(() => {
+    const commandHistory = commandHistoryRef.current;
+    commandHistory.setOnHistoryChange(() => {
+      forceUpdate({});
+    });
+  }, []);
 
   const handleSceneReady = (newScene: Scene) => {
     setScene(newScene);
   };
 
-  const handleAddObject = (
-    object: Mesh | DirectionalLight | AmbientLight | PointLight
-  ) => {
+  const handleAddObject = (object: Object3D) => {
     if (scene) {
-      scene.add(object);
+      // 使用命令模式添加对象
+      const command = new AddObjectCommand(object, scene);
+      commandHistoryRef.current.execute(command);
       setSelectedObject(object);
     }
+  };
+
+  const handleRemoveObject = (object: Object3D) => {
+    if (scene && object !== scene) {
+      // 使用命令模式删除对象
+      const command = new RemoveObjectCommand(object, scene);
+      commandHistoryRef.current.execute(command);
+      setSelectedObject(null);
+    }
+  };
+
+  // 处理对象变换完成时记录命令
+  const handleTransformEnd = (
+    object: Object3D,
+    type: "position" | "rotation" | "scale",
+    newValue: Vector3 | Euler
+  ) => {
+    let command;
+
+    switch (type) {
+      case "position":
+        command = new MoveCommand(object, newValue as Vector3);
+        break;
+      case "rotation":
+        command = new RotateCommand(object, newValue as Euler);
+        break;
+      case "scale":
+        command = new ScaleCommand(object, newValue as Vector3);
+        break;
+    }
+
+    if (command) {
+      commandHistoryRef.current.execute(command);
+    }
+  };
+
+  const handleObjectSelect = (object: Object3D | null) => {
+    setSelectedObject(object);
   };
 
   return (
@@ -44,11 +104,22 @@ const Home: React.FC = () => {
         {/* 左侧面板 - 场景层级 */}
         <div className="w-64 border-r border-gray-700 flex flex-col overflow-hidden">
           {scene && (
-            <SceneHierarchy
-              scene={scene}
-              selectedObject={selectedObject}
-              onSelect={setSelectedObject}
-            />
+            <>
+              <SceneHierarchy
+                scene={scene}
+                selectedObject={selectedObject}
+                onSelect={handleObjectSelect}
+                onDelete={handleRemoveObject}
+              />
+
+              {/* 高级工具组件 */}
+              <AdvancedTools
+                scene={scene}
+                commandHistory={commandHistoryRef.current}
+                onAddObject={handleAddObject}
+                selectedObject={selectedObject}
+              />
+            </>
           )}
         </div>
 
@@ -61,9 +132,10 @@ const Home: React.FC = () => {
           >
             <SceneContent
               selectedObject={selectedObject}
-              onSelect={setSelectedObject}
+              onSelect={handleObjectSelect}
               onSceneReady={handleSceneReady}
               transformMode={transformMode}
+              onTransformEnd={handleTransformEnd}
             />
           </Canvas>
 
@@ -104,7 +176,10 @@ const Home: React.FC = () => {
 
         {/* 右侧面板 - 属性 */}
         <div className="w-64 border-l border-gray-700">
-          <PropertiesPanel selectedObject={selectedObject} />
+          <PropertiesPanel
+            selectedObject={selectedObject}
+            commandHistory={commandHistoryRef.current}
+          />
         </div>
       </div>
 

@@ -1,13 +1,18 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { TransformControls, Grid, OrbitControls } from "@react-three/drei";
-import { Object3D, Vector2, Raycaster, Mesh } from "three";
+import { Object3D, Vector2, Raycaster, Mesh, Vector3, Euler } from "three";
 
 interface SceneContentProps {
   selectedObject: Object3D | null;
   onSelect: (object: Object3D | null) => void;
   onSceneReady: (scene: any) => void;
   transformMode: "translate" | "rotate" | "scale";
+  onTransformEnd?: (
+    object: Object3D,
+    type: "position" | "rotation" | "scale",
+    newValue: Vector3 | Euler
+  ) => void;
 }
 
 const SceneContent: React.FC<SceneContentProps> = ({
@@ -15,6 +20,7 @@ const SceneContent: React.FC<SceneContentProps> = ({
   onSelect,
   onSceneReady,
   transformMode = "translate",
+  onTransformEnd,
 }) => {
   const { scene, camera, gl } = useThree();
   const orbitControlsRef = useRef<any>();
@@ -22,6 +28,13 @@ const SceneContent: React.FC<SceneContentProps> = ({
   const [isTransforming, setIsTransforming] = useState(false);
   const raycaster = useRef(new Raycaster());
   const pointer = useRef(new Vector2());
+
+  // 保存初始变换状态以便在变换结束时比较
+  const initialTransform = useRef<{
+    position?: Vector3;
+    rotation?: Euler;
+    scale?: Vector3;
+  }>({});
 
   // 场景准备好后通知父组件
   useEffect(() => {
@@ -32,6 +45,74 @@ const SceneContent: React.FC<SceneContentProps> = ({
   useEffect(() => {
     const controls = transformControlsRef.current;
     if (controls) {
+      // 变换开始时保存初始状态
+      const onDragStart = () => {
+        if (selectedObject && onTransformEnd) {
+          initialTransform.current = {
+            position: selectedObject.position.clone(),
+            rotation: selectedObject.rotation.clone(),
+            scale: selectedObject.scale.clone(),
+          };
+        }
+      };
+
+      // 变换结束时如果有变化，触发回调
+      const onObjectChange = () => {
+        if (isTransforming && selectedObject && onTransformEnd) {
+          // 检查当前模式下是否有变化
+          switch (transformMode) {
+            case "translate":
+              if (
+                initialTransform.current.position &&
+                !selectedObject.position.equals(
+                  initialTransform.current.position
+                )
+              ) {
+                onTransformEnd(
+                  selectedObject,
+                  "position",
+                  selectedObject.position.clone()
+                );
+                initialTransform.current.position =
+                  selectedObject.position.clone();
+              }
+              break;
+            case "rotate":
+              if (
+                initialTransform.current.rotation &&
+                (selectedObject.rotation.x !==
+                  initialTransform.current.rotation.x ||
+                  selectedObject.rotation.y !==
+                    initialTransform.current.rotation.y ||
+                  selectedObject.rotation.z !==
+                    initialTransform.current.rotation.z)
+              ) {
+                onTransformEnd(
+                  selectedObject,
+                  "rotation",
+                  selectedObject.rotation.clone()
+                );
+                initialTransform.current.rotation =
+                  selectedObject.rotation.clone();
+              }
+              break;
+            case "scale":
+              if (
+                initialTransform.current.scale &&
+                !selectedObject.scale.equals(initialTransform.current.scale)
+              ) {
+                onTransformEnd(
+                  selectedObject,
+                  "scale",
+                  selectedObject.scale.clone()
+                );
+                initialTransform.current.scale = selectedObject.scale.clone();
+              }
+              break;
+          }
+        }
+      };
+
       // 变换开始时禁用轨道控制器
       const onDraggingChanged = (event: any) => {
         const { value } = event.target;
@@ -39,13 +120,76 @@ const SceneContent: React.FC<SceneContentProps> = ({
         if (orbitControlsRef.current) {
           orbitControlsRef.current.enabled = !value;
         }
+
+        // 变换结束时，比较变化并触发回调
+        if (!value && selectedObject && onTransformEnd) {
+          switch (transformMode) {
+            case "translate":
+              if (
+                initialTransform.current.position &&
+                !selectedObject.position.equals(
+                  initialTransform.current.position
+                )
+              ) {
+                onTransformEnd(
+                  selectedObject,
+                  "position",
+                  selectedObject.position.clone()
+                );
+              }
+              break;
+            case "rotate":
+              if (
+                initialTransform.current.rotation &&
+                (selectedObject.rotation.x !==
+                  initialTransform.current.rotation.x ||
+                  selectedObject.rotation.y !==
+                    initialTransform.current.rotation.y ||
+                  selectedObject.rotation.z !==
+                    initialTransform.current.rotation.z)
+              ) {
+                onTransformEnd(
+                  selectedObject,
+                  "rotation",
+                  selectedObject.rotation.clone()
+                );
+              }
+              break;
+            case "scale":
+              if (
+                initialTransform.current.scale &&
+                !selectedObject.scale.equals(initialTransform.current.scale)
+              ) {
+                onTransformEnd(
+                  selectedObject,
+                  "scale",
+                  selectedObject.scale.clone()
+                );
+              }
+              break;
+          }
+          initialTransform.current = {};
+        }
       };
 
       controls.addEventListener("dragging-changed", onDraggingChanged);
-      return () =>
+      controls.addEventListener("mouseDown", onDragStart);
+      controls.addEventListener("objectChange", onObjectChange);
+
+      return () => {
         controls.removeEventListener("dragging-changed", onDraggingChanged);
+        controls.removeEventListener("mouseDown", onDragStart);
+        controls.removeEventListener("objectChange", onObjectChange);
+      };
     }
-  }, [transformControlsRef]);
+  }, [
+    transformControlsRef,
+    orbitControlsRef,
+    selectedObject,
+    isTransforming,
+    transformMode,
+    onTransformEnd,
+  ]);
 
   // 处理场景点击选择对象
   const handleSceneClick = (event: any) => {
