@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+总体需求：通过标准化 MCP（Model-Communication-Protocol）协议，实现我所构建的网页与AI模型的无缝集成，支持用户通过浏览器直接调用AI能力，用ai模型通过mcp协议在我的网页编辑，渲染threejs 3D场景。
+
+技术栈组成：保证MCP请求/响应格式一致
+层级	技术选型	说明
+前端框架	Next.js（React） + TypeScript	实现动态页面和用户交互，内置API路由能力
+状态管理	 Context API	管理MCP请求状态（如加载中、结果缓存）
+HTTP请求	 Fetch API	   发送MCP协议请求
+后端服务	Next.js API Routes（Node.js）	处理MCP协议解析、认证、路由到AI模型
+部署	Vercel（Serverless）	利用Vercel的全球CDN加速API响应
+

@@ -18,6 +18,7 @@ import PropertiesPanel from "../components/PropertiesPanel";
 import Toolbar from "../components/Toolbar";
 import SceneContent from "../components/SceneContent";
 import AdvancedTools from "../components/AdvancedTools";
+import McpControlPanel from "../components/McpControlPanel";
 import {
   CommandHistory,
   MoveCommand,
@@ -119,6 +120,14 @@ const Home: React.FC = () => {
                 onAddObject={handleAddObject}
                 selectedObject={selectedObject}
               />
+
+              {/* MCP控制面板 */}
+              <div className="mt-4 px-2">
+                <McpControlPanel
+                  scene={scene}
+                  commandHistory={commandHistoryRef.current}
+                />
+              </div>
             </>
           )}
         </div>
@@ -184,8 +193,9 @@ const Home: React.FC = () => {
       </div>
 
       {/* 页脚 */}
-      <footer className="bg-gray-800 text-center py-2 text-xs border-t border-gray-700">
-        3D 模型编辑器 - 基于 Three.js 开发
+      <footer className="bg-gray-800 text-center py-2 text-xs border-t border-gray-700 flex justify-between items-center px-4">
+        <div>3D 模型编辑器 - 基于 Three.js 开发</div>
+        <div className="text-blue-400">MCP 协议已集成</div>
       </footer>
     </div>
   );
